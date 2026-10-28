@@ -541,7 +541,6 @@ func _live_pedal(down: bool) -> void:
 		for v in live_sustained.values():
 			_release(v[0], v[1], v[2])
 		live_sustained.clear()
-		_redraw_lit()  # pedal-held keys stop glowing
 
 
 func _live_cut(pitch: int) -> void:
@@ -738,7 +737,7 @@ func _draw_lit_keys(cv: CanvasItem, black: bool) -> void:
 	if vis.key_tint <= 0.0:
 		return
 	var lit := lit_notes.duplicate()
-	for p in live_held.keys() + live_sustained.keys():  # live keys glow while held or pedal-held; a falling note on the same key wins
+	for p in live_held:  # live keys glow only while physically held (not while the pedal holds the sound); a falling note on the same key wins
 		if not lit.has(p) and key_rects.has(p):
 			lit[p] = -1
 	for p in lit:
