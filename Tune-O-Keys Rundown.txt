@@ -50,6 +50,7 @@ Header panel (dark glass, three rows):
   Row 3
     MIDI Input ......... "All MIDI inputs" or one specific device.
     Refresh Devices .... Re-scans plugged-in MIDI hardware.
+    Volume ............. -24 to +12 dB on top of the automatic font level-matching. Remembered.
     Visual Settings .... Opens/closes the settings drawer on the right.
 
 Waterfall (middle):
@@ -214,7 +215,10 @@ Keyboard:
 11. FX RACK TAB (AUDIO)
 -----------------------
 Routing: all SoundFont audio (file playback and live keyboard) -> "Piano_FX" bus [Delay -> Reverb]
--> Master bus [-6 dB headroom + hard limiter at -0.5 dB]. Both effects start OFF.
+-> Master bus [hard limiter at -0.5 dB]. Both effects start OFF.
+Level-matching: when a font loads, its full-velocity C2/C4/C6 samples are measured and the font is
+boosted or cut so a hard note sits around -14 dBFS RMS (never peaking past -1 dBFS on its own).
+Every font plays at roughly the same, fairly loud level; the Volume slider adjusts from there.
 
 Delay:
     Enable, Sync Mode (Tempo Sync / Free ms), Time in beats (1/16, 1/8, dotted 1/8, 1/4,
@@ -280,7 +284,7 @@ Project folder: C:\Users\Gavin\Documents\tune-o-keys
     tests/demo.mid ......... Small demo song used by the tests.
     tests/stress.mid ....... The 30k-note stress file.
 
-Saved between launches (only the last SoundFont):
+Saved between launches (the last SoundFont and the Volume):
     C:\Users\Gavin\AppData\Roaming\Godot\app_userdata\Tune-O-Keys\settings.cfg
 
 Running the tests (from the project folder):
@@ -297,7 +301,7 @@ Running the tests (from the project folder):
     - No half-pedalling, sostenuto or soft pedal; no aftertouch; no pitch bend.
     - Only the first time signature is used for bar lines.
     - SMPTE-timed MIDI files are refused.
-    - Visual and FX settings aren't saved between launches (only the SoundFont is).
+    - Visual and FX settings aren't saved between launches (only the SoundFont and Volume are).
     - Live MIDI not yet tried by hand on the real keyboard; latency not measured.
     - Exported builds: .mid files inside the project need "*.mid" added to the export filter
       (imported files from disk work regardless). The SoundFont folder path is hard-coded to this PC.

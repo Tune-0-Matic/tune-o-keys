@@ -99,6 +99,23 @@ static func load_zones(path: String) -> Array:
 	return zones
 
 
+## Level of the full-velocity zones for C2, C4 and C6 over each sample's first second (the attack):
+## x = peak, y = RMS, both 0..1. Fonts are recorded at very different levels; the player uses this to
+## level-match them by loudness (RMS) without letting a single note clip (peak).
+static func level(zones: Array) -> Vector2:
+	var top := 0
+	var sum := 0.0
+	var count := 0
+	for pitch in [36, 60, 84]:
+		var data: PackedByteArray = pick(zones, pitch, 127).stream.data
+		for i in range(0, mini(data.size(), 48000 * 2), 4):  # every other 16-bit sample is plenty
+			var v := data.decode_s16(i)
+			top = maxi(top, absi(v))
+			sum += float(v) * v
+			count += 1
+	return Vector2(top / 32768.0, sqrt(sum / maxi(count, 1)) / 32768.0)
+
+
 ## Every .sf2 under dir, subfolders included, sorted by path.
 static func find_fonts(dir: String) -> PackedStringArray:
 	var found := PackedStringArray()

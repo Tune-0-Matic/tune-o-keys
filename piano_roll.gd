@@ -66,6 +66,9 @@ var bursts := {}  # pitch -> CPUParticles2D
 var label_size := 8
 var zones := []  # SoundFont.load_zones() result, or one built-in tone zone
 var playback: AudioStreamPlaybackPolyphonic
+var player := AudioStreamPlayer.new()
+var font_gain_db := 0.0  # level-matches the current SoundFont (see _select_soundfont)
+var volume_db := 0.0  # user Volume slider
 var font_picker: OptionButton
 var bpm_slider: HSlider
 var bpm_label: Label
@@ -141,10 +144,8 @@ func _ready() -> void:
 		add_child(layer)
 	var poly := AudioStreamPolyphonic.new()
 	poly.polyphony = 128  # engine max
-	var player := AudioStreamPlayer.new()
 	player.stream = poly
-	player.volume_db = -6.0  # headroom: full-scale piano samples clip when sustained chords stack
-	var limiter := AudioEffectHardLimiter.new()  # dense pedalled chords still sum past 0 dB; limit, don't clip
+	var limiter := AudioEffectHardLimiter.new()  # dense pedalled chords sum past 0 dB; limit, don't clip
 	limiter.ceiling_db = -0.5
 	AudioServer.add_bus_effect(0, limiter)
 	fx_bus = AudioServer.get_bus_index("Piano_FX")
@@ -329,6 +330,23 @@ func _build_ui() -> void:
 	refresh.text = "Refresh Devices"
 	refresh.pressed.connect(_refresh_midi)
 	midi_row.add_child(refresh)
+	var vol_label := Label.new()
+	midi_row.add_child(vol_label)
+	var vol := HSlider.new()
+	vol.min_value = -24.0
+	vol.max_value = 12.0
+	vol.step = 0.5
+	vol.custom_minimum_size = Vector2(160, 0)
+	vol.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	vol.value_changed.connect(func(v):
+		volume_db = v
+		vol_label.text = "Volume %+.1f dB" % v
+		_apply_volume()
+		_save_setting("volume_db", v))
+	vol.value = _load_setting("volume_db", 0.0)
+	vol_label.text = "Volume %+.1f dB" % vol.value
+	volume_db = vol.value
+	midi_row.add_child(vol)
 	var spacer := Control.new()
 	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	midi_row.add_child(spacer)
@@ -385,6 +403,18 @@ func _select_soundfont(index: int) -> void:
 	if zones.is_empty():
 		font_picker.select(0)
 		zones = [{lo = 0, hi = 127, vlo = 0, vhi = 127, root = 60, cents = 0, release = 0.12, stream = _synth_tone()}]
+	# Level-match: a full-velocity note lands at -14 dBFS RMS (loud, like other music players) whatever
+	# level the font was recorded at, but never so hot that one note peaks past -1 dBFS. Chords that
+	# sum higher are caught by the master limiter.
+	var lv := SoundFont.level(zones)
+	var by_loudness := linear_to_db(0.2 / maxf(lv.y, 0.0001))
+	var by_peak := linear_to_db(0.89 / maxf(lv.x, 0.001))
+	font_gain_db = clampf(minf(by_loudness, by_peak), -12.0, 30.0)
+	_apply_volume()
+
+
+func _apply_volume() -> void:
+	player.volume_db = font_gain_db + volume_db
 
 
 const SETTINGS := "user://settings.cfg"
