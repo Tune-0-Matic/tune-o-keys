@@ -145,9 +145,19 @@ func _ready() -> void:
 	var poly := AudioStreamPolyphonic.new()
 	poly.polyphony = 128  # engine max
 	player.stream = poly
-	var limiter := AudioEffectHardLimiter.new()  # dense pedalled chords sum past 0 dB; limit, don't clip
-	limiter.ceiling_db = -0.5
-	AudioServer.add_bus_effect(0, limiter)
+	if AudioServer.get_bus_effect_count(0) == 0:  # once per run, even if the scene is reloaded
+		# Master: a gentle compressor rides busy pedalled passages down smoothly, so the brick-wall
+		# limiter after it only catches stray peaks. Leaning on the limiter alone (6+ dB of constant
+		# gain reduction in dense music) distorts and sounds like clipping.
+		var comp := AudioEffectCompressor.new()
+		comp.threshold = -8.0  # Godot's compressor reacts to peaks: single notes (peak ~-4) barely touch it
+		comp.ratio = 3.0
+		comp.attack_us = 5000.0
+		comp.release_ms = 300.0
+		AudioServer.add_bus_effect(0, comp)
+		var limiter := AudioEffectHardLimiter.new()
+		limiter.ceiling_db = -0.5
+		AudioServer.add_bus_effect(0, limiter)
 	fx_bus = AudioServer.get_bus_index("Piano_FX")
 	if fx_bus < 0:  # created once per run; reloading the scene reuses it
 		fx_bus = AudioServer.bus_count
@@ -403,12 +413,12 @@ func _select_soundfont(index: int) -> void:
 	if zones.is_empty():
 		font_picker.select(0)
 		zones = [{lo = 0, hi = 127, vlo = 0, vhi = 127, root = 60, cents = 0, release = 0.12, stream = _synth_tone()}]
-	# Level-match: a full-velocity note lands at -14 dBFS RMS (loud, like other music players) whatever
-	# level the font was recorded at, but never so hot that one note peaks past -1 dBFS. Chords that
-	# sum higher are caught by the master limiter.
+	# Level-match: a full-velocity note lands at -18 dBFS RMS whatever level the font was recorded at,
+	# and one note never peaks past -4 dBFS. That leaves room for chords; the master compressor and
+	# limiter handle what's left.
 	var lv := SoundFont.level(zones)
-	var by_loudness := linear_to_db(0.2 / maxf(lv.y, 0.0001))
-	var by_peak := linear_to_db(0.89 / maxf(lv.x, 0.001))
+	var by_loudness := linear_to_db(0.126 / maxf(lv.y, 0.0001))
+	var by_peak := linear_to_db(0.63 / maxf(lv.x, 0.001))
 	font_gain_db = clampf(minf(by_loudness, by_peak), -12.0, 30.0)
 	_apply_volume()
 

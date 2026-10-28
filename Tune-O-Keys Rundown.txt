@@ -215,10 +215,12 @@ Keyboard:
 11. FX RACK TAB (AUDIO)
 -----------------------
 Routing: all SoundFont audio (file playback and live keyboard) -> "Piano_FX" bus [Delay -> Reverb]
--> Master bus [hard limiter at -0.5 dB]. Both effects start OFF.
+-> Master bus [compressor (threshold -8 dB, 3:1) -> hard limiter at -0.5 dB]. Both FX start OFF.
 Level-matching: when a font loads, its full-velocity C2/C4/C6 samples are measured and the font is
-boosted or cut so a hard note sits around -14 dBFS RMS (never peaking past -1 dBFS on its own).
-Every font plays at roughly the same, fairly loud level; the Volume slider adjusts from there.
+boosted or cut so a hard note sits around -18 dBFS RMS / -4 dBFS peak. Every font plays at roughly
+the same level. Busy pedalled passages are smoothed by the compressor; the limiter is only a safety
+net (measured: idle even on dense full-velocity pedalled chords). Volume adjusts from there; pushing
+it well above 0 dB makes the limiter work hard again, which sounds like clipping.
 
 Delay:
     Enable, Sync Mode (Tempo Sync / Free ms), Time in beats (1/16, 1/8, dotted 1/8, 1/4,
