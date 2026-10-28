@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <defs><clipPath id="tile"><rect x="4" y="4" width="120" height="120" rx="26"/></clipPath></defs>
+  <rect x="4" y="4" width="120" height="120" rx="26" fill="#121214"/>
+  <!-- motion trail -->
+  <g stroke="#ffffff" stroke-width="2" stroke-linecap="round">
+    <line x1="57" y1="12" x2="57" y2="22" opacity="0.15"/>
+    <line x1="64" y1="9" x2="64" y2="22" opacity="0.3"/>
+    <line x1="71" y1="12" x2="71" y2="22" opacity="0.15"/>
+  </g>
+  <!-- falling note -->
+  <rect x="54" y="26" width="20" height="44" rx="3" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+  <!-- impact spark -->
+  <g stroke="#ffb02e" stroke-width="3" stroke-linecap="round">
+    <line x1="48" y1="75" x2="39" y2="69"/>
+    <line x1="80" y1="75" x2="89" y2="69"/>
+    <line x1="44" y1="79" x2="33" y2="79"/>
+    <line x1="84" y1="79" x2="95" y2="79"/>
+  </g>
+  <rect x="52" y="74" width="24" height="3" rx="1.5" fill="#ffb02e"/>
+  <g clip-path="url(#tile)">
+    <!-- keys; middle one is struck -->
+    <g fill="#f4f4f4" stroke="#000000" stroke-width="2">
+      <rect x="9" y="81" width="22" height="40" rx="3"/>
+      <rect x="31" y="81" width="22" height="40" rx="3"/>
+      <rect x="53" y="81" width="22" height="40" rx="3" fill="#ffd591"/>
+      <rect x="75" y="81" width="22" height="40" rx="3"/>
+      <rect x="97" y="81" width="22" height="40" rx="3"/>
+    </g>
+    <g fill="#121214">
+      <rect x="24" y="81" width="14" height="21" rx="2"/>
+      <rect x="46" y="81" width="14" height="21" rx="2"/>
+      <rect x="90" y="81" width="14" height="21" rx="2"/>
+    </g>
+  </g>
+  <rect x="4" y="4" width="120" height="120" rx="26" fill="none" stroke="#2c2c30" stroke-width="2"/>
+</svg>

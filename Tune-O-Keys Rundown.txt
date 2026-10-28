@@ -1,0 +1,306 @@
+TUNE-O-KEYS — FULL RUNDOWN
+==========================
+Written 2026-10-28. Describes the project as it stands in C:\Users\Gavin\Documents\tune-o-keys.
+
+
+1. WHAT IT IS
+-------------
+Tune-O-Keys is a Godot 4.7 desktop app that turns MIDI into a falling-note piano visualizer (the
+"waterfall" style of Synthesia / Guitar Hero) with real piano sound:
+
+  - Import any .mid file and watch the notes fall onto an 88-key keyboard (A0 to C8).
+  - Sound comes from SoundFont (.sf2) instruments you pick from a dropdown.
+  - Plug in a physical MIDI keyboard and play along over the song.
+  - Almost every visual is adjustable live from a settings drawer, plus a delay/reverb FX rack.
+
+Everything is built in code (one tiny scene file); there are no hand-made scenes or image assets
+besides the app icon.
+
+
+2. HOW TO RUN IT
+----------------
+  - Open the project folder in Godot 4.7 and press Play, or run the Godot exe with --path pointing
+    at the folder. Godot exe on this machine:
+      C:\Users\Gavin\Documents\Apps\Godot\Godot_v4.7.2-stable_win64_console.exe
+  - The app opens empty (no song). Click "Import MIDI" to load one.
+  - SoundFonts are read from:  C:\Users\Gavin\Music\Tune-O-Keys\Soundfonts  (subfolders included).
+    This path is the "Soundfont Dir" property on the PianoRoll node if you ever move it.
+
+
+3. THE SCREEN, TOP TO BOTTOM
+----------------------------
+Header panel (dark glass, three rows):
+
+  Row 1
+    Import MIDI ........ Opens Windows' file picker for .mid/.midi. Loading a file restarts playback.
+    SoundFont dropdown . Every .sf2 under the Soundfonts folder (file name shown, full path on hover),
+                         plus "Built-in tone" (a simple synthesized fallback). Remembers your last pick.
+    BPM slider ......... 30 to 300. Starts at the file's own tempo. Playback speed = slider / file BPM.
+    Pedal switch ....... On = follow the sustain pedal (file and live keyboard). Off = ignore it.
+    BPM readout ........ "120 BPM (file 120, x1.00)".
+
+  Row 2
+    Play / Pause ....... Pausing fades out anything ringing. Play at the end restarts from the top.
+    Timeline ........... Drag to scrub. Jumping cuts all sound instantly and moves the waterfall.
+    Time readout ....... elapsed / total (m:ss).
+    Notes slider ....... Transparency of the falling notes and their labels (5% to 100%).
+    Sustain slider ..... How long a released note fades. Far left = "font" (each sample's own release
+                         time from the SoundFont). Further right = your own fade, 0.05 to 6 s.
+
+  Row 3
+    MIDI Input ......... "All MIDI inputs" or one specific device.
+    Refresh Devices .... Re-scans plugged-in MIDI hardware.
+    Visual Settings .... Opens/closes the settings drawer on the right.
+
+Waterfall (middle):
+    - Background: 8 solid octave bands in two alternating dark greys, separated by thick black
+      seams on every C. A gold outline marks Middle C (C4) all the way up.
+    - Faint horizontal lines on every beat, brighter ones on every bar (uses the file's time
+      signature).
+    - Falling notes: rounded tiles in their pitch colour (C red ... B purple). Black-key notes are
+      split 50/50 into their two neighbours' colours. White-key notes have a white border, black-key
+      notes a dark border. The note name (e.g. "F#" over "4") sits at the bottom edge when the tile
+      is tall enough. A tile's length = how long the key was physically held.
+    - A white strike line sits right on top of the keyboard.
+
+Keyboard (bottom):
+    - 88 standard black and white keys, every key labelled (name over octave).
+    - A key lights up in its pitch colour while its note sounds — including while the sustain pedal
+      holds it after the key is released.
+    - Particle bursts fly off the key when a note hits.
+
+
+4. COLOURS
+----------
+12 fixed colours, C to B, red through purple with no wrap-around, so B (purple) next to the following
+C (red) is a hard break at each octave:
+    C ff3030  C# ff6a1a  D ff9f1a  D# ffc81a  E f5e623  F 4cd13a
+    F# 2cc47a G 1fb5b0  G# 2a8fe0  A 3d5ef0  A# 6a3cf0  B 9b2fd6
+Black keys don't use their own entry; they show their two neighbours side by side.
+(The list is PALETTE at the top of piano_roll.gd.)
+
+
+5. MIDI FILES — WHAT GETS READ
+------------------------------
+midi_parser.gd reads Standard MIDI Files (format 0, 1 and 2):
+    - Note on / note off (including "note on with velocity 0" as note off), running status.
+    - Tempo changes anywhere in the song (the timing follows the full tempo map).
+    - The first time signature (for bar lines).
+    - CC 64 sustain pedal, per channel.
+    - Each note keeps: pitch, start time, key-release time, pedal-release ("sounding end") time,
+      velocity and MIDI channel.
+    - Re-striking a key that is still held or sustained ends the earlier copy.
+Ignored: SMPTE-timed files (refused with an error), later time-signature changes, aftertouch,
+pitch bend, program changes, other controllers. Notes outside A0-C8 are skipped.
+
+
+6. SUSTAIN — HOW IT WORKS
+-------------------------
+Files:
+    - Pedal down (CC 64 >= 64) while a key is released -> the note keeps sounding until the pedal
+      comes up. Pedal up -> every held note gets released.
+    - The falling tile shows only the key press; the key keeps glowing for the pedal-held part.
+Live keyboard:
+    - Same rules, read live from your keyboard's pedal. A live key glows while your finger is on it
+      or while the pedal holds it.
+Release (how a note dies):
+    - When a note is released it fades out smoothly (a damper-style exponential drop) over either the
+      SoundFont's own release time for that sample (clamped 0.03-10 s; 0.12 s if the font sets none)
+      or the Sustain slider's time if you move it off "font".
+    - While held, a note plays its recorded sample, so you hear the instrument's natural decay.
+      A note can never last longer than its recording (looping is off on purpose).
+Pedal switch Off: everything stops at key release; your keyboard's pedal is ignored too.
+Not supported: half-pedalling (on/off at 64 only), sostenuto (CC 66), soft pedal (CC 67).
+
+
+7. VELOCITY (HOW HARD A KEY IS HIT)
+-----------------------------------
+    - Volume follows the standard MIDI/SoundFont curve: 40 x log10(velocity / 127) dB.
+      Velocity 127 = full, 64 = about -12 dB, 32 = about -24 dB.
+    - "Velocity Sensitivity" (FX Rack tab, 0.5-2.0, default 1.0) scales that curve: 0.5 = gentle,
+      2.0 = very dynamic.
+    - Fonts with velocity layers switch recordings by velocity (Salamander has 16 layers, the
+      Upright KW and Tenor Sax have 2; the rest have 1).
+    - Velocity also drives the "Velocity Heatmap" note colour scheme (blue soft -> pink hard).
+    - Aftertouch and release velocity are ignored.
+
+
+8. SOUNDFONTS
+-------------
+soundfont.gd is a small SF2 reader written for this project. It takes the font's first preset
+(normally the piano at bank 0 / program 0) and reads, per sample zone: key range, velocity range,
+root key, tuning, release time, and the sample audio itself.
+
+Your fonts (all verified: load OK, and A2 / A4 / A6 measured at the correct pitch):
+    Font                       Keys covered   Velocity layers   Load time
+    Salamander Grand Piano     88/88          16                ~2.6 s (1.2 GB file, ~600 MB in memory)
+    YDP Grand Piano            88/88          1                 ~0.5 s
+    Upright Piano KW           88/88          2                 ~0.1 s
+    FM-Piano1                  72/88          1                 ~0.16 s
+    FM-Piano2                  78/88          1                 ~0.06 s
+    Church Organ Emulation     68/88          1                 ~0.03 s
+    Tenor Saxophone            47/88          2                 ~0.13 s
+
+Details:
+    - Fonts are streamed from disk sample by sample, so even the 1.2 GB Salamander never needs
+      double memory.
+    - Keys outside a font's range borrow the NEAREST sample (stretched as little as possible).
+    - Stereo fonts play their left channel only (mono).
+    - Ignored from the SF2 spec: volume/filter envelopes (except release time), modulators, filters,
+      attenuation, sample start/end offsets, preset-level ranges, loops, 24-bit extra precision.
+      Fine for pianos; multi-instrument GM fonts may not sound exactly as in a full SF2 player.
+    - Launch font: the one you picked last time (saved in settings.cfg, see section 13), otherwise
+      the first font with "piano" in its name, otherwise the first font.
+    - Picking Salamander freezes the app for ~2.6 s while it loads.
+
+
+9. LIVE MIDI KEYBOARD
+---------------------
+    - All OS MIDI inputs are opened at startup. On this machine one was found: "USB2.0-MIDI".
+    - The MIDI Input dropdown filters which device is listened to (Godot always opens all inputs).
+    - Key down: sounds the note through the current SoundFont at the played velocity, lights the key
+      in its pitch colour, fires particles. Pressing a still-ringing key re-strikes it.
+    - Key up: fades the note (or the pedal holds it).
+    - Pedal (CC 64): holds released notes; pedal up releases them all.
+    - Works on top of file playback, so you can play along with the falling notes.
+    - Windows lets only one program use a MIDI device at a time. If a DAW (or a second copy of the
+      app) has it open you'll get "Can't open MIDI device"; close the other program and press
+      Refresh Devices.
+    - Not yet tried by hand on your real keyboard (tests send the same messages in software).
+
+
+10. VISUAL SETTINGS DRAWER — "VISUALS" TAB
+------------------------------------------
+Every control updates live. Settings reset to the defaults on each launch (only the SoundFont choice
+is remembered).
+
+Presets (top):
+    Default ........ The launch look (octave bands, pitch-coloured glass tiles, classic keys).
+    Dark Particles . Pitch-black backdrop, strong glow, blue-to-pink velocity colours, big bursts.
+    Flat Minimal ... Pitch-black backdrop, flat channel-coloured notes, flat keys, no glow/particles.
+    Rainbow Lanes .. 88 coloured lanes behind the keys, white-bordered solid notes.
+    (Presets never touch the FX Rack / audio settings.)
+
+Background & Grid:
+    Backdrop ......... Solid Octave Bands / Full Pitch Spectrum Lanes / Pitch Black / Custom Color
+    Custom Color ..... Colour for the "Custom Color" backdrop
+    Octave Contrast .. How different the alternating octave bands are (0-1)
+    C-Seam Width ..... Thickness of the black line at each C (0-10 px)
+    Beat Lines ....... On/Off, plus Beat Opacity
+
+Note Blocks:
+    Color Scheme ..... 12-Semitone Chromatic / Track-Channel Mapped / Single Custom Color /
+                       Velocity Heatmap
+    Single Color ..... Colour for "Single Custom Color"
+    Note Style ....... Solid Color (flat, no glow) / Glass Tile (glow + top highlight, default) /
+                       Neon Glow (dim fill, glowing outline)
+    Corner Radius .... 0-16 px
+    Border ........... 0-5 px, plus Border Color (applies to white-key notes; black-key notes keep a
+                       dark border)
+    Note Labels ...... On/Off, plus Label Size
+
+Glow & Particles:
+    Glow Strength .... 0-3 (0 switches the bloom off entirely)
+    Strike Line ...... On/Off, colour, width
+    Particles ........ On/Off, type (Sparks / Rising Flame-Smoke / Explosion Burst),
+                       amount (0-300 per hit), lifetime (0.1-2 s)
+
+Keyboard:
+    Key Bed .......... Classic B&W / Flat Minimalist / Glass-Transparent / Full LED Light
+    Press Tint ....... How strongly a struck key takes its colour (0-1)
+    Key Names ........ All Keys / C-Keys Only / None
+
+
+11. FX RACK TAB (AUDIO)
+-----------------------
+Routing: all SoundFont audio (file playback and live keyboard) -> "Piano_FX" bus [Delay -> Reverb]
+-> Master bus [-6 dB headroom + hard limiter at -0.5 dB]. Both effects start OFF.
+
+Delay:
+    Enable, Sync Mode (Tempo Sync / Free ms), Time in beats (1/16, 1/8, dotted 1/8, 1/4,
+    dotted 1/4, 1/2), Time in ms (10-2000), Feedback (0-0.95), Tone (1-16 kHz high cut on the
+    repeats), Dry, Wet.
+    - Tempo sync follows the current playback BPM.
+    - Measured: echoes land exactly on time; first echo = Wet, each repeat = previous x Feedback
+      (a bit less with Tone turned down). If Wet is set lower than Feedback x Dry, the repeat rate is
+      capped at Wet / Dry (a quirk of Godot's delay that's compensated for).
+    - Capped at 2000 ms, so a tempo-synced 1/2 note below 60 BPM gets cut short.
+
+Reverb:
+    Enable, Preset (Small Room / Studio Stage / Concert Hall / Deep Cathedral / Shimmer Ambient),
+    Room Size, Damping, Stereo Spread, Dry, Wet.
+    - A preset sets the sliders (and pre-delay); tweak freely afterwards.
+    - "Shimmer Ambient" is a very long, bright hall; it does not pitch-shift like a true shimmer.
+
+Touch:
+    Velocity Sensitivity (see section 7).
+
+
+12. PERFORMANCE & GRAPHICS
+--------------------------
+Measured on this PC (GTX 1050 Ti) with a 30,000-note stress file (~100 notes per second):
+    Playing:  ~10-13 ms per frame (~75-100 fps, vsync off)   — was 143 ms (7 fps) before the rework
+    Paused:   ~3-6 ms        No song: ~2 ms
+How:
+    - All falling notes are drawn in ONE GPU draw call (a MultiMesh of quads + note_tile.gdshader,
+      which draws the rounded corners, borders, splits, glass highlight and neon outline per pixel).
+    - The 88-key keyboard and its labels are drawn once; only the lit keys redraw.
+    - Note labels are shaped once and reused.
+    - Per-note data is precomputed when a song loads or a setting changes; each frame only touches
+      notes that are on screen (found by binary search).
+    - Note fades are one simple loop, not a timer object per note.
+Graphics:
+    - Main renderer: Forward+ (DirectX 12) with HDR 2D, which the bloom/glow needs.
+    - On machines that can't run it, Godot falls back to OpenGL 3.3 (Compatibility). That path was
+      tested: it looks the same but has no bloom.
+Audio:
+    - 128 voices max; past 112 the oldest fading note (then oldest held note) is cut to make room.
+    - A master limiter prevents clipping in dense, heavily pedalled passages (measured: 0 clipped
+      samples where there were 96 before).
+Loading:
+    - A 30,000-note MIDI file takes ~1.3 s to load. Normal songs are much faster.
+
+
+13. FILES
+---------
+Project folder: C:\Users\Gavin\Documents\tune-o-keys
+    main.tscn .............. The only scene: one Node2D with piano_roll.gd.
+    piano_roll.gd .......... The app: UI header, playback clock, audio voices, sustain, live MIDI,
+                             FX bus, all drawing layers, settings save/load (~900 lines).
+    midi_parser.gd ......... Standard MIDI File reader (notes, tempo map, pedal, beats).
+    soundfont.gd ........... SF2 reader, font finder (subfolders), zone picker.
+    visual_drawer.gd ....... The right-side drawer: Visuals + FX Rack tabs, presets, all controls.
+    note_tile.gdshader ..... GPU shader that draws every falling note.
+    icon.svg ............... App icon (white note falling onto keys, amber spark).
+    project.godot .......... Godot settings (main scene, HDR 2D on, D3D12).
+    tests/test_midi.gd ..... Parser, colours, and every SoundFont in your folder.
+    tests/test_play.gd ..... Transport, seek/pause, voice limit, pedal/sustain, visual sync,
+                             velocity curve, release, live MIDI input, presets, FX rack.
+    tests/bench.gd ......... Frame-time benchmark using tests/stress.mid (30k notes).
+    tests/demo.mid ......... Small demo song used by the tests.
+    tests/stress.mid ....... The 30k-note stress file.
+
+Saved between launches (only the last SoundFont):
+    C:\Users\Gavin\AppData\Roaming\Godot\app_userdata\Tune-O-Keys\settings.cfg
+
+Running the tests (from the project folder):
+    godot --headless --path . -s res://tests/test_midi.gd
+    godot --path . -s res://tests/test_play.gd      (NOT --headless: needs real audio to free voices)
+    godot --path . -s res://tests/bench.gd
+
+
+14. KNOWN LIMITS / NOT DONE
+---------------------------
+    - Sound is mono (left channel of stereo samples).
+    - SF2 support is partial (see section 8); first preset only, no preset picker.
+    - Salamander freezes the app ~2.6 s when selected (no background loading).
+    - No half-pedalling, sostenuto or soft pedal; no aftertouch; no pitch bend.
+    - Only the first time signature is used for bar lines.
+    - SMPTE-timed MIDI files are refused.
+    - Visual and FX settings aren't saved between launches (only the SoundFont is).
+    - Live MIDI not yet tried by hand on the real keyboard; latency not measured.
+    - Exported builds: .mid files inside the project need "*.mid" added to the export filter
+      (imported files from disk work regardless). The SoundFont folder path is hard-coded to this PC.
+    - Not tested on genuinely weak hardware (only this PC, with the OpenGL fallback forced on).
+    - Audio has been measured (pitch, clipping, echo timing) but not judged by ear: the velocity
+      curve, long piano releases and reverb presets are worth a listen.
